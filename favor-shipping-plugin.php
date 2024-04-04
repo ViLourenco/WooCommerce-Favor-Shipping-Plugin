@@ -9,7 +9,7 @@
  * Requires at least: 4.4.0
  * Tested up to: 4.6.0
  *
- * Text Domain: favor-chipping-plugin
+ * Text Domain: favor-shipping-plugin
  * Domain Path: /languages
  *
  * @package WordPress
@@ -172,19 +172,3 @@ register_deactivation_hook( __FILE__, array( 'Favor_Shipping_Plugin', 'deactivat
 * Initialize the plugin.
 */
 add_action( 'plugins_loaded', array( 'Favor_Shipping_Plugin', 'get_instance' ) );
-
-//https://foam-divan-776.notion.site/API-Favor-Despaches-Cota-o-de-Envios-25a413eccc8b4d03843cb7ccff968c12#ae1be7c23b3443d4a09afbc0ff80492d
-
-// https://universal-capsule-876329.postman.co/workspace/API's-Favor-Despaches~dfdd2582-33a4-4c02-8eea-0ab2967ba186/request/31045824-d437ab10-ee77-4f8f-8264-5d9453badcdd?tab=body
-
-// https://woo.com/document/shipping-method-api/
-
-// https://webkul.com/blog/creating-new-shipping-method-woocommerce/
-
-// https://www.cloudways.com/blog/create-woocommerce-custom-shipping-method-plugin/
-
-// https://dev.codyss.com.br/favor-plugin/wp-admin/admin.php?page=wc-settings&tab=shipping&section=favorc-shipping-method
-
-// https://github.com/siddkb/WooCommerceAramexShippingIntegration/blob/master/includes/class-wc-integration-aramex-integration.php#L17
-
-// https://wordpress.org/support/topic/my-custom-shipping-method-doesnt-show-up-in-the-checkout-page/
