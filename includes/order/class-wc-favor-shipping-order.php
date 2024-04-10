@@ -100,7 +100,7 @@ class WC_Favor_Shipping_Order {
         }
         
         $api = new WC_Favor_Shipping_API();
-        $api->get_label_data( $remetente, $objetosPostais, $cod_servico );
+        $api->get_label_data( $remetente, $objetosPostais, $cod_servico, $order );
     }
 }
 

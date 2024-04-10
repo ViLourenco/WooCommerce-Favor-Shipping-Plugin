@@ -151,7 +151,7 @@ class WC_Favor_Shipping_API {
         }
     }
 
-    public function get_label_data( $remetente, $objetosPostais ) {
+    public function get_label_data( $remetente, $objetosPostais, $cod_servico = '', $order_obj ) {
         $this->set_url('https://6c40ewverb.execute-api.sa-east-1.amazonaws.com/Prod/solicitar-etiquetas');
 
         $remetente['cpfCnpjRemetente'] = $this->cpf_cnpj;
@@ -181,11 +181,27 @@ class WC_Favor_Shipping_API {
         }
 
         $response_body_decoded = json_decode( $response['body'], true );
-        //
+        
+        if( empty( $response_body_decoded['etiquetas'] ) ) {
+            $fsp_logger = wc_get_logger();
+            $fsp_logger->error( 'In get_label_data, etiquetas array is empty!', array( 'source' => 'favor-shipping-plugin' ) ); 
+            $fsp_logger->error( print_r( $response, true ), array( 'source' => 'favor-shipping-plugin' ) );                       
+        }
+
         $labels_base_64 = $response_body_decoded['etiquetas']['base64String'];
         $bin = base64_decode($labels_base_64, true);
-        if (strpos($bin, '%PDF') !== 0) {
-            throw new Exception('Missing the PDF file signature');
+        if (strpos($bin, '%PDF') !== 0) {            
+            $fsp_logger = wc_get_logger();
+            $fsp_logger->error( 'Missing the PDF file signature', array( 'source' => 'favor-shipping-plugin' ) ); 
+            $fsp_logger->error( print_r( $response, true ), array( 'source' => 'favor-shipping-plugin' ) );   
+            if( is_object( $order_obj ) ) {
+                $error_custom_message = "";
+                if( ! empty( $response_body_decoded['message'] ) && ! empty( $response_body_decoded['error'] ) ) {
+                    $error_custom_message = $response_body_decoded['message'] . " | " . $response_body_decoded['error'];
+                }
+                $order_obj->add_order_note( 'PDF não gerado, contatar o suporte! - ' . $error_custom_message );
+            }
+            return;                     
         }        
 
         $filename = 'favor_shipping_etiqueta_' . time() . '.pdf';
