@@ -39,68 +39,108 @@ class WC_Favor_Shipping_Order {
      * @param datatype $order The order object to retrieve shipping methods from.
      */
     public function get_labels( $order ) {
-        foreach($order->get_shipping_methods() as $shipping_method ){
-            $cod_servico = $shipping_method->get_meta('Serviço');             
-        } 
+        $data_access = get_option( 'woocommerce_favor_plugin_shipping_settings' );
+        $cpf_cnpj_sender = isset($data_access['cpf_cnpj']) ? $data_access['cpf_cnpj'] : '';
 
         $remetente = array(
-            "nomeRemetente" => get_option( 'blogname' ),
-            "cepRemetente" =>  WC()->countries->get_base_postcode(),
-            "logradouroRemetente" => WC()->countries->get_base_address(),
-            "numeroRemetente" => "N/A",
-            "complementoRemetente" => "",
-            "bairroRemetente" => WC()->countries->get_base_address_2(),
-            "cidadeRemetente" => WC()->countries->get_base_city(),
-            "ufRemetente" => WC()->countries->get_base_state(),           
+            "name" => get_option( 'blogname' ),
+            "email" => get_option( 'admin_email' ), // Added email as it might be required or useful, though defined as undefined in schema example it often helps. keeping as per schema undefined if empty. Schema says string | undefined.
+            "phone" => "", // Schema says string | undefined.
+            "cpf_cnpj" => $cpf_cnpj_sender,
+            "address" => array(
+                "zip" => str_replace( "-", "", WC()->countries->get_base_postcode() ),
+                "street" => WC()->countries->get_base_address(),
+                "number" => "N/A", // WooCommerce base address doesn't usually store number separately? Defaulting to N/A as per previous code.
+                "complement" => "",
+                "neighborhood" => WC()->countries->get_base_address_2(),
+                "city" => WC()->countries->get_base_city(),
+                "state" => WC()->countries->get_base_state(),
+            )
         );
+
+        $packages = array();
+        
+        // Get shipping service from order shipping methods
+        $service_name = 'PAC'; // Default
+        foreach($order->get_shipping_methods() as $shipping_method ){
+            $cod_servico = $shipping_method->get_meta('Serviço');
+            if( $cod_servico ) {
+                $service_name = $this->get_service_name_from_code( $cod_servico );
+                break; 
+            }
+        } 
         
         foreach( $order->get_items() as $item_id => $item ) {
-
             $product = wc_get_product( $item->get_product_id() );
-
             //Minimal dimensions
-            $dimensaoLargura = wc_get_dimension( (float) $product->get_width(), 'cm' );
-            if( $dimensaoLargura < 10 ) { $dimensaoLargura = 10; }
+            $width = wc_get_dimension( (float) $product->get_width(), 'cm' );
+            if( $width < 10 ) { $width = 10; }
 
-            $dimensaoComprimento = wc_get_dimension( (float) $product->get_length(), 'cm' );
-            if( $dimensaoComprimento < 16 ) { $dimensaoComprimento = 16; }
+            $length = wc_get_dimension( (float) $product->get_length(), 'cm' );
+            if( $length < 16 ) { $length = 16; }
 
-            $dimensaoAltura = wc_get_dimension( (float) $product->get_height(), 'cm' );
-            if( $dimensaoAltura < 2 ) { $dimensaoAltura = 2; }
+            $height = wc_get_dimension( (float) $product->get_height(), 'cm' );
+            if( $height < 2 ) { $height = 2; }
 
-            $objetosPostais[] = array(
-                "codigoServicoPostagem" => $cod_servico,
-                "peso" => wc_get_weight( (float) $product->get_weight(), 'kg' ) * 1000, 
-                "destinatario" => array(
-                    "nomeDestinatario" => $order->get_billing_first_name() . " " . $order->get_billing_last_name(),
-                    "logradouroDestinatario" => $order->get_billing_address_1(),
-                    "complementoDestinatario" => $order->get_billing_address_2(),
-                    "numeroDestinatario" =>  $order->get_meta( '_billing_number' ),
-                    "cpfCnpjDestinatario" => $order->get_meta( '_billing_cpf' ),
-                    "bairroDestinatario" => $order->get_meta( '_billing_neighborhood' ),
-                    "cidadeDestinatario" => $order->get_billing_city(),
-                    "ufDestinatario" => $order->get_billing_state(),
-                    "cepDestinatario" => str_replace( "-", "", $order->get_billing_postcode() ),
-                    "telefoneDestinatario" => $order->get_meta( '_billing_cellphone' ),
-                ),
-                "dimensaoObjeto" => array(
-                    "tipoObjeto" => "002",
-                    "dimensaoAltura" => $dimensaoAltura,
-                    "dimensaoLargura" => $dimensaoLargura,
-                    "dimensaoComprimento" => $dimensaoComprimento,
-                ),
-                "declaracaoConteudo" => array(
+            $weight = wc_get_weight( (float) $product->get_weight(), 'kg' ) * 1000;
+
+            $packages[] = array(
+                "shipping_service_name" => $service_name,
+                "content_declaration" => array(
                     array(
-                        "conteudo" => $item->get_name(),
-                        "quantidade" => $item->get_quantity(),
-                        "valorUnitario" => intval( $product->get_price() ),
-                    ),
-                ), 
-            );          
+                        "content" => $item->get_name(),
+                        "quantity" => $item->get_quantity(),
+                        "unit_value" => intval( $product->get_price() )
+                    )
+                )
+                "package_data" => array(
+                    "package_weight_grams" => $weight,
+                    "package_width" => $width,
+                    "package_height" => $height,
+                    "package_length" => $length,
+                    "package_type" => "BOX" // Defaulting to BOX
+                )
+            );
         }
+
+        $receivers = array(
+            array(
+                "name" => $order->get_billing_first_name() . " " . $order->get_billing_last_name(),
+                "email" => $order->get_billing_email(),
+                "phone" => $order->get_meta( '_billing_cellphone' ) ? $order->get_meta( '_billing_cellphone' ) : $order->get_billing_phone(),
+                "cpf_cnpj" => $order->get_meta( '_billing_cpf' ), // Assuming this meta key exists as per previous code
+                "address" => array(
+                    "zip" => str_replace( "-", "", $order->get_billing_postcode() ),
+                    "street" => $order->get_billing_address_1(),
+                    "number" => $order->get_meta( '_billing_number' ),
+                    "complement" => $order->get_billing_address_2(),
+                    "neighborhood" => $order->get_meta( '_billing_neighborhood' ),
+                    "city" => $order->get_billing_city(),
+                    "state" => $order->get_billing_state()
+                ),
+                "packages" => $packages
+            )
+        );
+
+        $request_body = array(
+            "sender" => $remetente,
+            "receivers" => $receivers
+        );
         
         $api = new WC_Favor_Shipping_API();
-        $api->get_label_data( $remetente, $objetosPostais, $cod_servico, $order );
+        $api->get_label_data( $request_body, $order );
+    }
+
+    private function get_service_name_from_code( $code ) {
+        $map = array(
+            '04510' => 'PAC',
+            '04014' => 'SEDEX',
+            '04227' => 'MINI ENVIOS',
+            '40169' => 'SEDEX 12',
+            '40215' => 'SEDEX 10',
+            '40290' => 'SEDEX HOJE',
+        );
+        return isset( $map[$code] ) ? $map[$code] : 'PAC';
     }
 }
 

@@ -39,7 +39,7 @@ if( ! class_exists( 'WC_Favor_Shipping_Integration' ) ) :
             global $woocommerce;
 
             $this->id = 'favor_plugin_shipping';
-            $this->method_title = 'Favor Shipping';
+            $this->method_title = 'Favor Despaches';
             $this->method_description = 'Plugin de integração que conecta a API da Favor ao checkout WooCommerce.';
 
             $this->init_form_fields();
@@ -58,9 +58,9 @@ if( ! class_exists( 'WC_Favor_Shipping_Integration' ) ) :
         public function init_form_fields() {
             $this->form_fields = array(
                 'api_key' => array(
-                    'title'       => __( 'Api Key Favor:', 'favor-shipping-shipping' ),
+                    'title'       => __( 'Chave de API Favor:', 'favor-shipping-shipping' ),
                     'type'        => 'text',
-                    'description' => 'Digite seu api key referente a sua conta na Favor.',
+                    'description' => 'Digite sua chave de API referente a sua conta na Favor.',
                     'desc_tip'    => true,
                     'default'     => '',
                 ),               

@@ -151,19 +151,13 @@ class WC_Favor_Shipping_API {
         }
     }
 
-    public function get_label_data( $remetente, $objetosPostais, $cod_servico = '', $order_obj ) {
-        $this->set_url('https://6c40ewverb.execute-api.sa-east-1.amazonaws.com/Prod/solicitar-etiquetas');
+    public function get_label_data( $request_body, $order_obj ) {
+        $this->set_url('https://favordespaches.com.br/api/shipments/woocommerce');
 
-        $remetente['cpfCnpjRemetente'] = $this->cpf_cnpj;
-
-        $request = array(
-            'remetente' => $remetente,
-            'objetosPostais' => $objetosPostais,
-        );
 
         $response = wp_remote_post($this->url, array(
             'method'    => $this->method,
-            'body'      => json_encode( $request ),
+            'body'      => json_encode( $request_body ),
             'headers'   => array(
                 'Content-Type' => 'application/json',
                 'x-api-key' => $this->api_key,
