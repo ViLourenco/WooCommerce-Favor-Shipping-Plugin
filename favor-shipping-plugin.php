@@ -109,17 +109,6 @@ if ( ! class_exists( 'Favor_Shipping_Plugin' ) ) {
 		}
 
 		/**
-		 * Registers the integration by adding the 'Favor_Shipping_WC_Integration' class to the integrations array.
-		 *
-		 * @param array $integrations The array of integrations.
-		 * @return array The updated array of integrations.
-		 */
-		public function register_integration( $integrations ) {
-			$integrations[] = 'WC_Favor_Shipping_Integration';
-			return $integrations;
-		}
-
-		/**
 		 * Includes the shipping class if the WC_Shipping class exists.
 		 *
 		 * This function checks if the WC_Shipping class exists and if it does, it includes the shipping class file.
