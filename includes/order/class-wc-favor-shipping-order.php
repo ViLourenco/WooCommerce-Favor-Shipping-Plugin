@@ -15,7 +15,7 @@ class WC_Favor_Shipping_Order {
     public function __construct() {
         add_filter( 'woocommerce_order_actions', array( $this, 'generate_favor_shipping_label_order_action' ), 9999, 2 );
         add_action( 'woocommerce_order_action_favor_shipping_label', array( $this, 'get_labels' ) );
-
+        add_action( 'add_meta_boxes', array( $this, 'add_order_labels_meta_box' ) );
     }
 
     /**
@@ -39,6 +39,13 @@ class WC_Favor_Shipping_Order {
      * @param datatype $order The order object to retrieve shipping methods from.
      */
     public function get_labels( $order ) {
+        // Check if labels already exist
+        $existing_label_url = $order->get_meta( '_favor_shipping_label_url' );
+        if ( ! empty( $existing_label_url ) ) {
+            $order->add_order_note( 'Etiqueta Favor já foi gerada anteriormente. Use os links na barra lateral para baixar.' );
+            return;
+        }
+        
         $data_access = get_option( 'woocommerce_favor_plugin_shipping_settings' );
         $cpf_cnpj_sender = isset($data_access['cpf_cnpj']) ? $data_access['cpf_cnpj'] : '';
 
@@ -128,7 +135,86 @@ class WC_Favor_Shipping_Order {
         );
         
         $api = new WC_Favor_Shipping_API();
-        $api->get_label_data( $request_body, $order );
+        $result = $api->get_label_data( $request_body, $order );
+        
+        if ( $result ) {
+            $order->add_order_note( 'Etiqueta Favor gerada com sucesso!' );
+        } else {
+            $order->add_order_note( 'Erro ao gerar etiqueta Favor. Verifique os logs.' );
+        }
+    }
+
+    /**
+     * Add meta box to display Favor shipping labels on order edit page.
+     */
+    public function add_order_labels_meta_box() {
+        add_meta_box(
+            'favor_shipping_labels',
+            'Etiquetas Favor',
+            array( $this, 'render_order_labels_meta_box' ),
+            'shop_order',
+            'side',
+            'high'
+        );
+
+        // For HPOS (High-Performance Order Storage)
+        add_meta_box(
+            'favor_shipping_labels',
+            'Etiquetas Favor',
+            array( $this, 'render_order_labels_meta_box' ),
+            'woocommerce_page_wc-orders',
+            'side',
+            'high'
+        );
+    }
+
+    /**
+     * Render the meta box content with label download links.
+     *
+     * @param WP_Post|WC_Order $post_or_order The order post or order object.
+     */
+    public function render_order_labels_meta_box( $post_or_order ) {
+        // Get order object
+        if ( $post_or_order instanceof WC_Order ) {
+            $order = $post_or_order;
+        } else {
+            $order = wc_get_order( $post_or_order->ID );
+        }
+
+        if ( ! $order ) {
+            echo '<p>Pedido não encontrado.</p>';
+            return;
+        }
+
+        $label_url = $order->get_meta( '_favor_shipping_label_url' );
+        $content_url = $order->get_meta( '_favor_content_declaration_url' );
+        $generated_timestamp = $order->get_meta( '_favor_shipping_label_generated' );
+
+        if ( empty( $label_url ) ) {
+            echo '<p>Nenhuma etiqueta gerada ainda.</p>';
+            echo '<p><em>Use a ação "Exibir etiqueta de despacho" acima para gerar.</em></p>';
+            return;
+        }
+
+        echo '<div class="favor-shipping-labels-box">';
+        
+        if ( $generated_timestamp ) {
+            echo '<p><strong>Gerado em:</strong> ' . date( 'd/m/Y H:i:s', $generated_timestamp ) . '</p>';
+        }
+
+        echo '<p><strong>Documentos disponíveis:</strong></p>';
+        echo '<ul style="margin-left: 20px;">';
+        
+        if ( ! empty( $label_url ) ) {
+            echo '<li><a href="' . esc_url( $label_url ) . '" target="_blank" class="button button-primary" style="margin-bottom: 5px; display: inline-block;">📄 Download Etiqueta</a></li>';
+        }
+        
+        if ( ! empty( $content_url ) ) {
+            echo '<li><a href="' . esc_url( $content_url ) . '" target="_blank" class="button button-secondary" style="margin-bottom: 5px; display: inline-block;">📋 Download Declaração de Conteúdo</a></li>';
+        }
+        
+        echo '</ul>';
+        echo '</div>';
     }
 
     private function get_service_name_from_code( $code ) {

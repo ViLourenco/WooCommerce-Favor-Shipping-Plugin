@@ -154,7 +154,6 @@ class WC_Favor_Shipping_API {
     public function get_label_data( $request_body, $order_obj ) {
         $this->set_url('https://favordespaches.com.br/api/shipments/woocommerce');
 
-
         $response = wp_remote_post($this->url, array(
             'method'    => $this->method,
             'body'      => json_encode( $request_body ),
@@ -180,48 +179,75 @@ class WC_Favor_Shipping_API {
                 $error_msg = isset( $response_body_decoded['error'] ) ? $response_body_decoded['error'] : 'Erro desconhecido';
                 $order_obj->add_order_note( 'Falha ao gerar etiqueta Favor: ' . $error_msg );
             }
-            return;
+            return false;
         }
 
         if( empty( $response_body_decoded['label'] ) ) {
             $fsp_logger = wc_get_logger();
             $fsp_logger->error( 'Label field is empty in success response', array( 'source' => 'favor-shipping-plugin' ) );
-            return;
+            return false;
         }
 
-        $labels_base_64 = $response_body_decoded['label'];
-        $bin = base64_decode($labels_base_64, true);
+        // Prepare upload directory
+        $upload_dir = wp_upload_dir();
+        $favor_dir = $upload_dir['basedir'] . '/favor-shipping-labels';
+        
+        if ( ! file_exists( $favor_dir ) ) {
+            wp_mkdir_p( $favor_dir );
+        }
 
-        if (strpos($bin, '%PDF') !== 0) {            
+        $order_id = is_object( $order_obj ) ? $order_obj->get_id() : 0;
+        $timestamp = time();
+
+        // Process and save label PDF
+        $label_base64 = $response_body_decoded['label'];
+        $label_bin = base64_decode($label_base64, true);
+
+        if (strpos($label_bin, '%PDF') !== 0) {            
             $fsp_logger = wc_get_logger();
-            $fsp_logger->error( 'Missing the PDF file signature', array( 'source' => 'favor-shipping-plugin' ) ); 
+            $fsp_logger->error( 'Missing the PDF file signature for label', array( 'source' => 'favor-shipping-plugin' ) ); 
             $fsp_logger->error( print_r( $response, true ), array( 'source' => 'favor-shipping-plugin' ) );   
             if( is_object( $order_obj ) ) {
-                $order_obj->add_order_note( 'PDF não gerado (assinatura inválida), contatar o suporte!' );
+                $order_obj->add_order_note( 'PDF da etiqueta não gerado (assinatura inválida), contatar o suporte!' );
             }
-            return;                     
-        }        
+            return false;                     
+        }
 
-        $filename = 'favor_shipping_etiqueta_' . time() . '.pdf';
+        $label_filename = 'order-' . $order_id . '-label-' . $timestamp . '.pdf';
+        $label_filepath = $favor_dir . '/' . $label_filename;
+        file_put_contents($label_filepath, $label_bin);
+        $label_url = $upload_dir['baseurl'] . '/favor-shipping-labels/' . $label_filename;
 
-        file_put_contents($filename, $bin);
-        
-        header('Content-Description: File Transfer');
-        header('Content-Type: application/pdf');
-        header('Content-Disposition: attachment; filename="' . basename($filename) . '"');
-        header('Expires: 0');
-        header('Cache-Control: must-revalidate');
-        header('Pragma: public');
-        header('Content-Length: ' . filesize($filename));
+        // Process and save content declaration PDF if present
+        $content_declaration_url = '';
+        if( ! empty( $response_body_decoded['contentDeclaration'] ) ) {
+            $content_base64 = $response_body_decoded['contentDeclaration'];
+            $content_bin = base64_decode($content_base64, true);
+
+            if (strpos($content_bin, '%PDF') === 0) {
+                $content_filename = 'order-' . $order_id . '-content-declaration-' . $timestamp . '.pdf';
+                $content_filepath = $favor_dir . '/' . $content_filename;
+                file_put_contents($content_filepath, $content_bin);
+                $content_declaration_url = $upload_dir['baseurl'] . '/favor-shipping-labels/' . $content_filename;
+            } else {
+                $fsp_logger = wc_get_logger();
+                $fsp_logger->error( 'Missing the PDF file signature for content declaration', array( 'source' => 'favor-shipping-plugin' ) );
+            }
+        }
+
+        // Save URLs to order meta
+        if( is_object( $order_obj ) ) {
+            $order_obj->update_meta_data( '_favor_shipping_label_url', $label_url );
+            $order_obj->update_meta_data( '_favor_shipping_label_generated', $timestamp );
             
-        ob_clean();
-        flush();
+            if( ! empty( $content_declaration_url ) ) {
+                $order_obj->update_meta_data( '_favor_content_declaration_url', $content_declaration_url );
+            }
             
-        readfile($filename);
-                
-        unlink($filename);
-        exit;        
-        //
+            $order_obj->save();
+            $order_obj->add_order_note( 'Etiqueta Favor gerada com sucesso em ' . date('d/m/Y H:i:s', $timestamp) );
+        }
 
+        return true;
     }
 }
