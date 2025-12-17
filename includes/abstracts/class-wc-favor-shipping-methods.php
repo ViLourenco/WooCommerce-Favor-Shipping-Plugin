@@ -71,7 +71,7 @@ if( ! class_exists( 'WC_Favor_Shipping_Methods' ) ) {
 
                 $rates = array(
                     'id' => $shipping_name . "_" . $i,
-                    'label'  => $shipping_name . $shipping_deadline,
+                    'label'  => 'FAVOR ' . $shipping_name . $shipping_deadline,
                     'cost'   => $shipping_data['precoClienteTotal'],
                     'meta_data'   => $meta,            
                 ); 

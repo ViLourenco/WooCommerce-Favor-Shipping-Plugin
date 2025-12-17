@@ -128,13 +128,19 @@ class WC_Favor_Shipping_Order {
         $packages = array();
         
         // Get shipping service from order shipping methods
-        $service_name = 'PAC'; // Default
+        $service_name = null;
         foreach($order->get_shipping_methods() as $shipping_method ){
             $cod_servico = $shipping_method->get_meta('Serviço');
             if( $cod_servico ) {
                 $service_name = $this->get_service_name_from_code( $cod_servico );
                 break; 
             }
+        }
+        
+        // If no service found, log error and abort
+        if( !$service_name ) {
+            $order->add_order_note( 'Erro: Não foi possível identificar o serviço de entrega. Verifique se o método de entrega está configurado corretamente ou se o serviço de entrega da FAVOR foi selecionado.' );
+            return;
         } 
         
         foreach( $order->get_items() as $item_id => $item ) {
@@ -197,9 +203,7 @@ class WC_Favor_Shipping_Order {
         $api = new WC_Favor_Shipping_API();
         $result = $api->get_label_data( $request_body, $order );
         
-        if ( $result ) {
-            $order->add_order_note( 'Etiqueta Favor gerada com sucesso!' );
-        } else {
+        if ( ! $result ) {
             $order->add_order_note( 'Erro ao gerar etiqueta Favor. Verifique os logs.' );
         }
     }
@@ -278,15 +282,16 @@ class WC_Favor_Shipping_Order {
     }
 
     private function get_service_name_from_code( $code ) {
+        // Correios contract service codes
         $map = array(
-            '04510' => 'PAC',
-            '04014' => 'SEDEX',
+            '03298' => 'PAC',
+            '03220' => 'SEDEX',
+            '03158' => 'SEDEX 10',
+            '03140' => 'SEDEX 12',
+            '03204' => 'SEDEX HOJE',
             '04227' => 'MINI ENVIOS',
-            '40169' => 'SEDEX 12',
-            '40215' => 'SEDEX 10',
-            '40290' => 'SEDEX HOJE',
         );
-        return isset( $map[$code] ) ? $map[$code] : 'PAC';
+        return isset( $map[$code] ) ? $map[$code] : null;
     }
 }
 
