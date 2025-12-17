@@ -105,9 +105,8 @@ class WC_Favor_Shipping_API {
      * @return void
      */
     protected function get_data_access() {
-        $data_access = get_option( 'woocommerce_favor_plugin_shipping_settings' );
-        $this->api_key = $data_access['api_key'];
-        $this->cpf_cnpj = $data_access['cpf_cnpj'];        
+        $this->api_key = WC_Favor_Shipping_Settings::get_api_key();
+        $this->cpf_cnpj = WC_Favor_Shipping_Settings::get_cpf_cnpj();        
     }
 
     /**
@@ -117,6 +116,12 @@ class WC_Favor_Shipping_API {
      */
     public function get_shipping_data() {
         $this->set_url('https://www.favordespaches.com/api/v1/calc-preco-prazo/woocommerce');
+
+        WC_Favor_Shipping_Logger::info( 'API Request: GET shipping data', array(
+            'url' => $this->url,
+            'origin_cep' => $this->base_postcode,
+            'destiny_cep' => $this->destiny_postcode,
+        ) );
 
         $response = wp_remote_post($this->url, array(
             'method'    => $this->method,
@@ -145,14 +150,21 @@ class WC_Favor_Shipping_API {
         ));    
 
         if ( is_wp_error( $response ) ) {
+            WC_Favor_Shipping_Logger::error( 'API Error: ' . $response->get_error_message() );
             wc_add_notice('Problemas no retorno de dados da API de entregas. Por favor, tente novamente! ' . $response->get_error_message(), 'error');
         } else {
+            WC_Favor_Shipping_Logger::info( 'API Response: Shipping data received successfully' );
             return json_decode( wp_remote_retrieve_body( $response ), true );
         }
     }
 
     public function get_label_data( $request_body, $order_obj ) {
         $this->set_url('https://favordespaches.com.br/api/shipments/woocommerce');
+
+        $order_id = is_object( $order_obj ) ? $order_obj->get_id() : 0;
+        WC_Favor_Shipping_Logger::info( 'API Request: Generate label for order #' . $order_id, array(
+            'url' => $this->url,
+        ) );
 
         $response = wp_remote_post($this->url, array(
             'method'    => $this->method,
@@ -171,9 +183,8 @@ class WC_Favor_Shipping_API {
         $response_body_decoded = json_decode( $response['body'], true );
         
         if ( ! isset( $response_body_decoded['success'] ) || ! $response_body_decoded['success'] ) {
-            $fsp_logger = wc_get_logger();
-            $fsp_logger->error( 'API returned error or success=false', array( 'source' => 'favor-shipping-plugin' ) ); 
-            $fsp_logger->error( print_r( $response, true ), array( 'source' => 'favor-shipping-plugin' ) );
+            WC_Favor_Shipping_Logger::error( 'API returned error or success=false for order #' . $order_id ); 
+            WC_Favor_Shipping_Logger::error( print_r( $response, true ) );
             
             if( is_object( $order_obj ) ) {
                 $error_msg = isset( $response_body_decoded['error'] ) ? $response_body_decoded['error'] : 'Erro desconhecido';
@@ -183,8 +194,7 @@ class WC_Favor_Shipping_API {
         }
 
         if( empty( $response_body_decoded['label'] ) ) {
-            $fsp_logger = wc_get_logger();
-            $fsp_logger->error( 'Label field is empty in success response', array( 'source' => 'favor-shipping-plugin' ) );
+            WC_Favor_Shipping_Logger::error( 'Label field is empty in success response for order #' . $order_id );
             return false;
         }
 
@@ -196,7 +206,6 @@ class WC_Favor_Shipping_API {
             wp_mkdir_p( $favor_dir );
         }
 
-        $order_id = is_object( $order_obj ) ? $order_obj->get_id() : 0;
         $timestamp = time();
 
         // Process and save label PDF
@@ -204,9 +213,8 @@ class WC_Favor_Shipping_API {
         $label_bin = base64_decode($label_base64, true);
 
         if (strpos($label_bin, '%PDF') !== 0) {            
-            $fsp_logger = wc_get_logger();
-            $fsp_logger->error( 'Missing the PDF file signature for label', array( 'source' => 'favor-shipping-plugin' ) ); 
-            $fsp_logger->error( print_r( $response, true ), array( 'source' => 'favor-shipping-plugin' ) );   
+            WC_Favor_Shipping_Logger::error( 'Missing the PDF file signature for label on order #' . $order_id ); 
+            WC_Favor_Shipping_Logger::error( print_r( $response, true ) );   
             if( is_object( $order_obj ) ) {
                 $order_obj->add_order_note( 'PDF da etiqueta não gerado (assinatura inválida), contatar o suporte!' );
             }
@@ -217,6 +225,8 @@ class WC_Favor_Shipping_API {
         $label_filepath = $favor_dir . '/' . $label_filename;
         file_put_contents($label_filepath, $label_bin);
         $label_url = $upload_dir['baseurl'] . '/favor-shipping-labels/' . $label_filename;
+
+        WC_Favor_Shipping_Logger::info( 'Label PDF saved successfully for order #' . $order_id . ': ' . $label_filename );
 
         // Process and save content declaration PDF if present
         $content_declaration_url = '';
@@ -229,9 +239,9 @@ class WC_Favor_Shipping_API {
                 $content_filepath = $favor_dir . '/' . $content_filename;
                 file_put_contents($content_filepath, $content_bin);
                 $content_declaration_url = $upload_dir['baseurl'] . '/favor-shipping-labels/' . $content_filename;
+                WC_Favor_Shipping_Logger::info( 'Content declaration PDF saved for order #' . $order_id . ': ' . $content_filename );
             } else {
-                $fsp_logger = wc_get_logger();
-                $fsp_logger->error( 'Missing the PDF file signature for content declaration', array( 'source' => 'favor-shipping-plugin' ) );
+                WC_Favor_Shipping_Logger::error( 'Missing the PDF file signature for content declaration on order #' . $order_id );
             }
         }
 

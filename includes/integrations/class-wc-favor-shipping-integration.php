@@ -32,6 +32,13 @@ if( ! class_exists( 'WC_Favor_Shipping_Integration' ) ) :
         protected $cpf_cnpj = '';
 
         /**
+        * The contact phone for shipping.
+        *
+        * @var string
+        */
+        protected $contact_phone = '';
+
+        /**
          * A description of the entire PHP function.
          *
          */
@@ -47,6 +54,7 @@ if( ! class_exists( 'WC_Favor_Shipping_Integration' ) ) :
 
             $this->api_key = $this->get_option('api_key');
             $this->cpf_cnpj = $this->get_option('cpf_cnpj');
+            $this->contact_phone = $this->get_option('contact_phone');
 
             add_action( 'woocommerce_update_options_integration_' . $this->id, array( $this, 'process_admin_options' ) );
         }
@@ -70,7 +78,14 @@ if( ! class_exists( 'WC_Favor_Shipping_Integration' ) ) :
                     'description' => 'Digite seu CNPJ ou CPF que é utilizado na sua loja.',
                     'desc_tip'    => true,
                     'default'     => '',
-                ),                   
+                ),
+                'contact_phone' => array(
+                    'title'       => __( 'Telefone de Contato:', 'favor-shipping-shipping' ),
+                    'type'        => 'text',
+                    'description' => 'Digite o telefone de contato para entregas.',
+                    'desc_tip'    => true,
+                    'default'     => '',
+                ),
             );
         }        
     }

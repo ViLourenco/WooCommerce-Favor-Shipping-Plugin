@@ -95,15 +95,17 @@ if ( ! class_exists( 'Favor_Shipping_Plugin' ) ) {
 		public function includes() {
 			include_once 'includes/favor-shipping-functionality.php';	
 			include_once 'includes/utils/class-wc-favor-shipping-package.php';
+			include_once 'includes/utils/class-wc-favor-shipping-logger.php';
 			include_once 'includes/api/class-wc-favor-shipping-api.php';
 			include_once 'includes/order/class-wc-favor-shipping-order.php';
+			include_once 'includes/admin/class-wc-favor-shipping-settings.php';
+			include_once 'includes/admin/class-wc-favor-shipping-logs-page.php';
 
-			if( class_exists( 'WC_Integration' ) ) {
-				include_once 'includes/integrations/class-wc-favor-shipping-integration.php';
-				add_filter( 'woocommerce_integrations', array( $this, 'register_integration' ) );
-			}
 			add_action( 'woocommerce_shipping_init', array( $this, 'include_shipping' ) );
 			add_filter( 'woocommerce_shipping_methods', array( $this, 'include_shipping_method' ) );
+			
+			// Add custom store address fields
+			add_filter( 'woocommerce_general_settings', array( $this, 'add_store_address_fields' ) );
 		}
 
 		/**
@@ -154,6 +156,45 @@ if ( ! class_exists( 'Favor_Shipping_Plugin' ) ) {
 			echo '<div class="error">';
 			echo '<p>' . __( 'Favor Shipping Plugin: Needs the WooCommerce Plugin activated.', 'favor-shipping-locale' ) . '</p>';
 			echo '</div>';
+		}
+
+		/**
+		 * Add custom store address fields (Número and Bairro) to WooCommerce general settings.
+		 *
+		 * @param array $settings The existing settings array.
+		 * @return array The modified settings array.
+		 */
+		public function add_store_address_fields( $settings ) {
+			$new_settings = array();
+
+			foreach ( $settings as $setting ) {
+				$new_settings[] = $setting;
+
+				// Insert our custom fields after woocommerce_store_address_2
+				if ( isset( $setting['id'] ) && 'woocommerce_store_address_2' === $setting['id'] ) {
+					$new_settings[] = array(
+						'title'    => __( 'Número', 'favor-despaches-woocommerce-plugin' ),
+						'desc'     => __( 'Número do endereço da loja', 'favor-despaches-woocommerce-plugin' ),
+						'id'       => 'favor_store_address_number',
+						'type'     => 'text',
+						'css'      => 'min-width:300px;',
+						'default'  => '',
+						'desc_tip' => true,
+					);
+
+					$new_settings[] = array(
+						'title'    => __( 'Bairro', 'favor-despaches-woocommerce-plugin' ),
+						'desc'     => __( 'Bairro do endereço da loja', 'favor-despaches-woocommerce-plugin' ),
+						'id'       => 'favor_store_neighborhood',
+						'type'     => 'text',
+						'css'      => 'min-width:300px;',
+						'default'  => '',
+						'desc_tip' => true,
+					);
+				}
+			}
+
+			return $new_settings;
 		}
 	}
 }

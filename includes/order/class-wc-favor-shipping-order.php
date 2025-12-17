@@ -106,20 +106,23 @@ class WC_Favor_Shipping_Order {
      */
     private function generate_new_labels( $order ) {
         
-        $data_access = get_option( 'woocommerce_favor_plugin_shipping_settings' );
-        $cpf_cnpj_sender = isset($data_access['cpf_cnpj']) ? $data_access['cpf_cnpj'] : '';
+        // Get settings from new location
+        $cpf_cnpj_sender = WC_Favor_Shipping_Settings::get_cpf_cnpj();
+        $store_phone = preg_replace('/[^0-9]/', '', WC_Favor_Shipping_Settings::get_contact_phone());
+        $store_number = get_option( 'favor_store_address_number', '' );
+        $store_neighborhood = get_option( 'favor_store_neighborhood', '' );
 
         $remetente = array(
             "name" => get_option( 'blogname' ),
-            "email" => get_option( 'admin_email' ), // Added email as it might be required or useful, though defined as undefined in schema example it often helps. keeping as per schema undefined if empty. Schema says string | undefined.
-            "phone" => "", // Schema says string | undefined.
+            "email" => get_option( 'admin_email' ),
+            "phone" => $store_phone,
             "cpf_cnpj" => $cpf_cnpj_sender,
             "address" => array(
                 "zip" => str_replace( "-", "", WC()->countries->get_base_postcode() ),
                 "street" => WC()->countries->get_base_address(),
-                "number" => "N/A", // WooCommerce base address doesn't usually store number separately? Defaulting to N/A as per previous code.
-                "complement" => "",
-                "neighborhood" => WC()->countries->get_base_address_2(),
+                "number" => ! empty( $store_number ) ? $store_number : "N/A",
+                "complement" => WC()->countries->get_base_address_2(),
+                "neighborhood" => $store_neighborhood,
                 "city" => WC()->countries->get_base_city(),
                 "state" => WC()->countries->get_base_state(),
             )
