@@ -92,7 +92,7 @@ class WC_Favor_Shipping_Order {
                         "quantity" => $item->get_quantity(),
                         "unit_value" => intval( $product->get_price() )
                     )
-                )
+                ),
                 "package_data" => array(
                     "package_weight_grams" => $weight,
                     "package_width" => $width,
