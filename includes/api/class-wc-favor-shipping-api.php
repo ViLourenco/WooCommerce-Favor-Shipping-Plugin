@@ -116,7 +116,7 @@ class WC_Favor_Shipping_API {
      * @return mixed The shipping data from the API
      */
     public function get_shipping_data() {
-        $this->set_url('https://www.favordespaches.com/api/v1/precoPrazo');
+        $this->set_url('https://www.favordespaches.com/api/v1/calc-preco-prazo/woocommerce');
 
         $response = wp_remote_post($this->url, array(
             'method'    => $this->method,
