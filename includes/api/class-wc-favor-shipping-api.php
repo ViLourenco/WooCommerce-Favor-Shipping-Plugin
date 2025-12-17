@@ -245,7 +245,9 @@ class WC_Favor_Shipping_API {
             }
             
             $order_obj->save();
-            $order_obj->add_order_note( 'Etiqueta Favor gerada com sucesso em ' . date('d/m/Y H:i:s', $timestamp) );
+            $date = new DateTime("@$timestamp");
+            $date->setTimezone(new DateTimeZone('America/Sao_Paulo'));
+            $order_obj->add_order_note( 'Etiqueta Favor gerada com sucesso em ' . $date->format('d/m/Y H:i:s') );
         }
 
         return true;

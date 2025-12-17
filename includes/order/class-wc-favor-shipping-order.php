@@ -256,14 +256,16 @@ class WC_Favor_Shipping_Order {
 
         if ( empty( $label_url ) ) {
             echo '<p>Nenhuma etiqueta gerada ainda.</p>';
-            echo '<p><em>Use a ação "Exibir etiqueta de despacho" acima para gerar.</em></p>';
+            echo '<p><em>Use a ação "Gerar Etiqueta Favor" em "Ações do Pedido" para gerar.</em></p>';
             return;
         }
 
         echo '<div class="favor-shipping-labels-box">';
         
         if ( $generated_timestamp ) {
-            echo '<p><strong>Gerado em:</strong> ' . date( 'd/m/Y H:i:s', $generated_timestamp ) . '</p>';
+            $date = new DateTime("@$generated_timestamp");
+            $date->setTimezone(new DateTimeZone('America/Sao_Paulo'));
+            echo '<p><strong>Gerado em:</strong> ' . $date->format('d/m/Y H:i:s') . '</p>';
         }
 
         echo '<p><strong>Documentos disponíveis:</strong></p>';
