@@ -1,15 +1,15 @@
 <?php
 /**
- * Plugin Name: Favor Shipping Plugin
- * Version: 1.0.0
- * Plugin URI: https://favor.com.br
- * Description: Favor Shipping Plugin
+ * Plugin Name: Favor Despaches WooCommerce
+ * Version: 1.1.0
+ * Plugin URI: https://favordespaches.com.br
+ * Description: Plugin Favor Despaches para WooCommerce
  * Author: Vinícius Lourenço
  * Author URI: https://codyss.com.br
  * Requires at least: 4.4.0
  * Tested up to: 4.6.0
  *
- * Text Domain: favor-shipping-plugin
+ * Text Domain: favor-despaches-woocommerce-plugin
  * Domain Path: /languages
  *
  * @package WordPress
@@ -34,7 +34,7 @@ if ( ! class_exists( 'Favor_Shipping_Plugin' ) ) {
 		*
 		* @var string
 		*/
-		const VERSION = '1.0.0';
+		const VERSION = '1.1.0';
 
 
 		/**
