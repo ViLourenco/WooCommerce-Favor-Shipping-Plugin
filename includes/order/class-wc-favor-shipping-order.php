@@ -15,6 +15,7 @@ class WC_Favor_Shipping_Order {
     public function __construct() {
         add_filter( 'woocommerce_order_actions', array( $this, 'generate_favor_shipping_label_order_action' ), 9999, 2 );
         add_action( 'woocommerce_order_action_favor_shipping_label', array( $this, 'get_labels' ) );
+        add_action( 'woocommerce_order_action_favor_shipping_regenerate_label', array( $this, 'regenerate_labels' ) );
         add_action( 'add_meta_boxes', array( $this, 'add_order_labels_meta_box' ) );
     }
 
@@ -28,7 +29,15 @@ class WC_Favor_Shipping_Order {
     public function generate_favor_shipping_label_order_action( $actions, $order_id ) {
         $order = wc_get_order( $order_id );
         if ( in_array( $order->get_status(), wc_get_is_paid_statuses() ) ) {
-            $actions['favor_shipping_label'] = 'Exibir etiqueta de despacho';
+            $existing_label_url = $order->get_meta( '_favor_shipping_label_url' );
+            
+            if ( empty( $existing_label_url ) ) {
+                // No label exists, show generate option
+                $actions['favor_shipping_label'] = 'Gerar Etiqueta Favor';
+            } else {
+                // Label exists, show regenerate option
+                $actions['favor_shipping_regenerate_label'] = 'Gerar outra Etiqueta Favor';
+            }
         }
         return $actions;
     }
@@ -39,12 +48,63 @@ class WC_Favor_Shipping_Order {
      * @param datatype $order The order object to retrieve shipping methods from.
      */
     public function get_labels( $order ) {
-        // Check if labels already exist
-        $existing_label_url = $order->get_meta( '_favor_shipping_label_url' );
-        if ( ! empty( $existing_label_url ) ) {
-            $order->add_order_note( 'Etiqueta Favor já foi gerada anteriormente. Use os links na barra lateral para baixar.' );
-            return;
+        // Generate new labels (this should only be called when no labels exist)
+        $this->generate_new_labels( $order );
+    }
+
+    /**
+     * Regenerate labels - delete old PDFs and create new ones.
+     *
+     * @param WC_Order $order The order object.
+     */
+    public function regenerate_labels( $order ) {
+        // Delete old PDF files
+        $old_label_url = $order->get_meta( '_favor_shipping_label_url' );
+        $old_content_url = $order->get_meta( '_favor_content_declaration_url' );
+        
+        if ( ! empty( $old_label_url ) ) {
+            $old_label_path = $this->get_file_path_from_url( $old_label_url );
+            if ( file_exists( $old_label_path ) ) {
+                unlink( $old_label_path );
+            }
         }
+        
+        if ( ! empty( $old_content_url ) ) {
+            $old_content_path = $this->get_file_path_from_url( $old_content_url );
+            if ( file_exists( $old_content_path ) ) {
+                unlink( $old_content_path );
+            }
+        }
+        
+        // Clear old meta data
+        $order->delete_meta_data( '_favor_shipping_label_url' );
+        $order->delete_meta_data( '_favor_content_declaration_url' );
+        $order->delete_meta_data( '_favor_shipping_label_generated' );
+        $order->save();
+        
+        $order->add_order_note( 'Etiquetas antigas removidas. Gerando novas etiquetas...' );
+        
+        // Generate new labels
+        $this->generate_new_labels( $order );
+    }
+
+    /**
+     * Convert URL to file system path.
+     *
+     * @param string $url The file URL.
+     * @return string The file system path.
+     */
+    private function get_file_path_from_url( $url ) {
+        $upload_dir = wp_upload_dir();
+        return str_replace( $upload_dir['baseurl'], $upload_dir['basedir'], $url );
+    }
+
+    /**
+     * Generate new labels from the order data.
+     *
+     * @param WC_Order $order The order object.
+     */
+    private function generate_new_labels( $order ) {
         
         $data_access = get_option( 'woocommerce_favor_plugin_shipping_settings' );
         $cpf_cnpj_sender = isset($data_access['cpf_cnpj']) ? $data_access['cpf_cnpj'] : '';
@@ -203,7 +263,7 @@ class WC_Favor_Shipping_Order {
         }
 
         echo '<p><strong>Documentos disponíveis:</strong></p>';
-        echo '<ul style="margin-left: 20px;">';
+        echo '<ul style="margin-left: 8px;">';
         
         if ( ! empty( $label_url ) ) {
             echo '<li><a href="' . esc_url( $label_url ) . '" target="_blank" class="button button-primary" style="margin-bottom: 5px; display: inline-block;">📄 Download Etiqueta</a></li>';
