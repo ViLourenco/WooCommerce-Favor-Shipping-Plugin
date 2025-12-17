@@ -169,31 +169,35 @@ class WC_Favor_Shipping_API {
             'cookies' => array(),
         ));         
 
-        if( 200 != $response['response']['code'] ) {
-            $fsp_logger = wc_get_logger();
-            $fsp_logger->error( print_r( $response, true ), array( 'source' => 'favor-shipping-plugin' ) );
-        }
-
         $response_body_decoded = json_decode( $response['body'], true );
         
-        if( empty( $response_body_decoded['etiquetas'] ) ) {
+        if ( ! isset( $response_body_decoded['success'] ) || ! $response_body_decoded['success'] ) {
             $fsp_logger = wc_get_logger();
-            $fsp_logger->error( 'In get_label_data, etiquetas array is empty!', array( 'source' => 'favor-shipping-plugin' ) ); 
-            $fsp_logger->error( print_r( $response, true ), array( 'source' => 'favor-shipping-plugin' ) );                       
+            $fsp_logger->error( 'API returned error or success=false', array( 'source' => 'favor-shipping-plugin' ) ); 
+            $fsp_logger->error( print_r( $response, true ), array( 'source' => 'favor-shipping-plugin' ) );
+            
+            if( is_object( $order_obj ) ) {
+                $error_msg = isset( $response_body_decoded['error'] ) ? $response_body_decoded['error'] : 'Erro desconhecido';
+                $order_obj->add_order_note( 'Falha ao gerar etiqueta Favor: ' . $error_msg );
+            }
+            return;
         }
 
-        $labels_base_64 = $response_body_decoded['etiquetas']['base64String'];
+        if( empty( $response_body_decoded['label'] ) ) {
+            $fsp_logger = wc_get_logger();
+            $fsp_logger->error( 'Label field is empty in success response', array( 'source' => 'favor-shipping-plugin' ) );
+            return;
+        }
+
+        $labels_base_64 = $response_body_decoded['label'];
         $bin = base64_decode($labels_base_64, true);
+
         if (strpos($bin, '%PDF') !== 0) {            
             $fsp_logger = wc_get_logger();
             $fsp_logger->error( 'Missing the PDF file signature', array( 'source' => 'favor-shipping-plugin' ) ); 
             $fsp_logger->error( print_r( $response, true ), array( 'source' => 'favor-shipping-plugin' ) );   
             if( is_object( $order_obj ) ) {
-                $error_custom_message = "";
-                if( ! empty( $response_body_decoded['message'] ) && ! empty( $response_body_decoded['error'] ) ) {
-                    $error_custom_message = $response_body_decoded['message'] . " | " . $response_body_decoded['error'];
-                }
-                $order_obj->add_order_note( 'PDF não gerado, contatar o suporte! - ' . $error_custom_message );
+                $order_obj->add_order_note( 'PDF não gerado (assinatura inválida), contatar o suporte!' );
             }
             return;                     
         }        
