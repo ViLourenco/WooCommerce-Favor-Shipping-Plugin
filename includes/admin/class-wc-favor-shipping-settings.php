@@ -17,43 +17,35 @@ if ( ! defined( 'ABSPATH' ) ) {
 class WC_Favor_Shipping_Settings {
 
     /**
-     * Settings section ID.
-     *
-     * @var string
-     */
-    const SECTION_ID = 'favor_despaches';
-
-    /**
      * Constructor.
      */
     public function __construct() {
-        add_filter( 'woocommerce_get_sections_shipping', array( $this, 'add_section' ) );
-        add_filter( 'woocommerce_get_settings_shipping', array( $this, 'get_settings' ), 10, 2 );
+        add_filter( 'woocommerce_get_settings_shipping', array( $this, 'get_settings' ), 99, 2 );
     }
 
     /**
-     * Add Favor Despaches section to shipping settings.
-     *
-     * @param array $sections Existing sections.
-     * @return array Modified sections.
-     */
-    public function add_section( $sections ) {
-        $sections[ self::SECTION_ID ] = __( 'Favor Despaches', 'favor-despaches-woocommerce-plugin' );
-        return $sections;
-    }
-
-    /**
-     * Get settings for Favor Despaches section.
+     * Inject Favor Despaches settings into the main shipping options page.
      *
      * @param array  $settings        Existing settings.
      * @param string $current_section Current section ID.
      * @return array Modified settings.
      */
     public function get_settings( $settings, $current_section ) {
-        if ( self::SECTION_ID !== $current_section ) {
+        // Only inject into the main shipping options page (empty section or 'options')
+        if ( '' !== $current_section && 'options' !== $current_section ) {
             return $settings;
         }
 
+        // Find the index of the debug mode setting
+        $debug_mode_index = -1;
+        foreach ( $settings as $index => $setting ) {
+            if ( isset( $setting['id'] ) && 'woocommerce_shipping_debug_mode' === $setting['id'] ) {
+                $debug_mode_index = $index;
+                break;
+            }
+        }
+
+        // Prepare Favor Despaches settings
         $favor_settings = array(
             array(
                 'title' => __( 'Configurações Favor Despaches', 'favor-despaches-woocommerce-plugin' ),
@@ -94,7 +86,24 @@ class WC_Favor_Shipping_Settings {
             ),
         );
 
-        return $favor_settings;
+        // If debug mode setting found, insert after its section; otherwise append to end
+        if ( $debug_mode_index >= 0 ) {
+            // Find the sectionend after debug mode, then insert AFTER it
+            $insert_index = $debug_mode_index + 1;
+            while ( $insert_index < count( $settings ) ) {
+                if ( isset( $settings[ $insert_index ]['type'] ) && 'sectionend' === $settings[ $insert_index ]['type'] ) {
+                    $insert_index++; // Move past the sectionend to insert after it
+                    break;
+                }
+                $insert_index++;
+            }
+            array_splice( $settings, $insert_index, 0, $favor_settings );
+        } else {
+            // If debug mode not found, append to the end
+            $settings = array_merge( $settings, $favor_settings );
+        }
+
+        return $settings;
     }
 
     /**

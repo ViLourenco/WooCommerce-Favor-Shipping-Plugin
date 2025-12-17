@@ -52,7 +52,7 @@ class WC_Favor_Shipping_Logs_Page {
      * Redirect to shipping settings page.
      */
     public function redirect_to_settings() {
-        wp_redirect( admin_url( 'admin.php?page=wc-settings&tab=shipping&section=favor_despaches' ) );
+        wp_redirect( admin_url( 'admin.php?page=wc-settings&tab=shipping&section=options#favor_despaches_settings' ) );
         exit;
     }
 
@@ -74,7 +74,7 @@ class WC_Favor_Shipping_Logs_Page {
      */
     private function get_missing_setup_items() {
         $missing = array();
-        $settings_url = admin_url( 'admin.php?page=wc-settings&tab=shipping&section=favor_despaches' );
+        $settings_url = admin_url( 'admin.php?page=wc-settings&tab=shipping&section=options#favor_despaches_settings' );
 
         // Check store address fields
         $store_address = get_option( 'woocommerce_store_address', '' );
@@ -125,8 +125,8 @@ class WC_Favor_Shipping_Logs_Page {
             );
         }
 
-        // Check Favor Despaches settings (new location)
-        $api_key = WC_Favor_Shipping_Settings::get_api_key();
+        // Check Favor Despaches settings (new location only - don't use fallback getters)
+        $api_key = get_option( 'woocommerce_favor_api_key', '' );
         if ( empty( $api_key ) ) {
             $missing[] = array(
                 'field' => __( 'Chave de API Favor', 'favor-despaches-woocommerce-plugin' ),
@@ -134,7 +134,7 @@ class WC_Favor_Shipping_Logs_Page {
             );
         }
 
-        $cpf_cnpj = WC_Favor_Shipping_Settings::get_cpf_cnpj();
+        $cpf_cnpj = get_option( 'woocommerce_favor_cpf_cnpj', '' );
         if ( empty( $cpf_cnpj ) ) {
             $missing[] = array(
                 'field' => __( 'CPF/CNPJ', 'favor-despaches-woocommerce-plugin' ),
@@ -142,7 +142,7 @@ class WC_Favor_Shipping_Logs_Page {
             );
         }
 
-        $contact_phone = WC_Favor_Shipping_Settings::get_contact_phone();
+        $contact_phone = get_option( 'woocommerce_favor_contact_phone', '' );
         if ( empty( $contact_phone ) ) {
             $missing[] = array(
                 'field' => __( 'Telefone de Contato', 'favor-despaches-woocommerce-plugin' ),

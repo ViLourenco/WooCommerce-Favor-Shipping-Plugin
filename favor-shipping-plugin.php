@@ -173,7 +173,7 @@ if ( ! class_exists( 'Favor_Shipping_Plugin' ) ) {
 
 					$new_settings[] = array(
 						'title'    => __( 'Bairro', 'favor-despaches-woocommerce-plugin' ),
-						'desc'     => __( 'Bairro do endereço da loja', 'favor-despaches-woocommerce-plugin' ),
+						'desc'     => __( 'Bairro da loja', 'favor-despaches-woocommerce-plugin' ),
 						'id'       => 'favor_store_neighborhood',
 						'type'     => 'text',
 						'css'      => 'min-width:300px;',
