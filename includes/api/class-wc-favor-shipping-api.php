@@ -105,9 +105,8 @@ class WC_Favor_Shipping_API {
      * @return void
      */
     protected function get_data_access() {
-        $data_access = get_option( 'woocommerce_favor_plugin_shipping_settings' );
-        $this->api_key = $data_access['api_key'];
-        $this->cpf_cnpj = $data_access['cpf_cnpj'];        
+        $this->api_key = WC_Favor_Shipping_Settings::get_api_key();
+        $this->cpf_cnpj = WC_Favor_Shipping_Settings::get_cpf_cnpj();        
     }
 
     /**
@@ -116,7 +115,18 @@ class WC_Favor_Shipping_API {
      * @return mixed The shipping data from the API
      */
     public function get_shipping_data() {
-        $this->set_url('https://www.favordespaches.com/api/v1/precoPrazo');
+        $this->set_url('https://www.favordespaches.com.br/api/v1/calc-preco-prazo/woocommerce');
+
+        WC_Favor_Shipping_Logger::info( 'Requisição API: Obter dados de envio', array(
+            'url' => $this->url,
+            'origin_cep' => $this->base_postcode,
+            'destiny_cep' => $this->destiny_postcode,
+        ) );
+
+        if ( empty( $this->api_key ) ) {
+            WC_Favor_Shipping_Logger::error( 'Chave de API Favor não configurada' );
+            return false;
+        }
 
         $response = wp_remote_post($this->url, array(
             'method'    => $this->method,
@@ -142,28 +152,55 @@ class WC_Favor_Shipping_API {
             'httpversion' => '1.0',
             'blocking' => true,
             'cookies' => array(),
-        ));    
+        ));
 
         if ( is_wp_error( $response ) ) {
-            wc_add_notice('Problemas no retorno de dados da API de entregas. Por favor, tente novamente! ' . $response->get_error_message(), 'error');
-        } else {
-            return json_decode( wp_remote_retrieve_body( $response ), true );
+            WC_Favor_Shipping_Logger::error( 'Calculo de Frete - Erro de conexão API: ' . $response->get_error_message() );
+            wc_add_notice('Calculo de Frete - Problemas na conexão com a API de fretes. Por favor, tente novamente!', 'error');
+            return false;
         }
+
+        $response_code = wp_remote_retrieve_response_code( $response );
+        $response_body = wp_remote_retrieve_body( $response );
+        $decoded_body = json_decode( $response_body, true );
+
+        // Check for HTTP errors or error message in body
+        if ( $response_code !== 200 || ! empty( $decoded_body['msgErro'] ) ) {
+            $error_msg = ! empty( $decoded_body['msgErro'] ) ? $decoded_body['msgErro'] : 'Erro ' . $response_code;
+            
+            WC_Favor_Shipping_Logger::error( 'Calculo de Frete - Erro de API Favor (' . $response_code . '): ' . $error_msg, array(
+                'body' => $response_body
+            ) );
+
+            if ( is_admin() && ! defined( 'DOING_AJAX' ) ) {
+                wc_add_notice( 'Calculo de Frete - Erro de API Favor: ' . $error_msg, 'error' );
+            }
+            
+            return false;
+        }
+
+        return $decoded_body;
     }
 
-    public function get_label_data( $remetente, $objetosPostais, $cod_servico = '', $order_obj ) {
-        $this->set_url('https://6c40ewverb.execute-api.sa-east-1.amazonaws.com/Prod/solicitar-etiquetas');
+    public function get_label_data( $request_body, $order_obj ) {
+        $this->set_url('https://favordespaches.com.br/api/shipments/woocommerce');
 
-        $remetente['cpfCnpjRemetente'] = $this->cpf_cnpj;
+        if ( empty( $this->api_key ) ) {
+            WC_Favor_Shipping_Logger::error( 'Chave de API Favor não configurada' );
+            if( is_object( $order_obj ) ) {
+                $order_obj->add_order_note( 'Falha ao gerar etiqueta Favor: Chave de API não configurada' );
+            }
+            return false;
+        }
 
-        $request = array(
-            'remetente' => $remetente,
-            'objetosPostais' => $objetosPostais,
-        );
+        $order_id = is_object( $order_obj ) ? $order_obj->get_id() : 0;
+        WC_Favor_Shipping_Logger::info( 'Requisição API: Gerar etiqueta para o pedido #' . $order_id, array(
+            'url' => $this->url,
+        ) );
 
         $response = wp_remote_post($this->url, array(
             'method'    => $this->method,
-            'body'      => json_encode( $request ),
+            'body'      => json_encode( $request_body ),
             'headers'   => array(
                 'Content-Type' => 'application/json',
                 'x-api-key' => $this->api_key,
@@ -173,57 +210,97 @@ class WC_Favor_Shipping_API {
             'httpversion' => '1.0',
             'blocking' => true,
             'cookies' => array(),
-        ));         
+        ));
 
-        if( 200 != $response['response']['code'] ) {
-            $fsp_logger = wc_get_logger();
-            $fsp_logger->error( print_r( $response, true ), array( 'source' => 'favor-shipping-plugin' ) );
-        }
-
-        $response_body_decoded = json_decode( $response['body'], true );
-        
-        if( empty( $response_body_decoded['etiquetas'] ) ) {
-            $fsp_logger = wc_get_logger();
-            $fsp_logger->error( 'In get_label_data, etiquetas array is empty!', array( 'source' => 'favor-shipping-plugin' ) ); 
-            $fsp_logger->error( print_r( $response, true ), array( 'source' => 'favor-shipping-plugin' ) );                       
-        }
-
-        $labels_base_64 = $response_body_decoded['etiquetas']['base64String'];
-        $bin = base64_decode($labels_base_64, true);
-        if (strpos($bin, '%PDF') !== 0) {            
-            $fsp_logger = wc_get_logger();
-            $fsp_logger->error( 'Missing the PDF file signature', array( 'source' => 'favor-shipping-plugin' ) ); 
-            $fsp_logger->error( print_r( $response, true ), array( 'source' => 'favor-shipping-plugin' ) );   
+        if ( is_wp_error( $response ) ) {
+            WC_Favor_Shipping_Logger::error( 'Erro de conexão API ao gerar etiqueta: ' . $response->get_error_message() );
             if( is_object( $order_obj ) ) {
-                $error_custom_message = "";
-                if( ! empty( $response_body_decoded['message'] ) && ! empty( $response_body_decoded['error'] ) ) {
-                    $error_custom_message = $response_body_decoded['message'] . " | " . $response_body_decoded['error'];
-                }
-                $order_obj->add_order_note( 'PDF não gerado, contatar o suporte! - ' . $error_custom_message );
+                $order_obj->add_order_note( 'Falha ao gerar etiqueta Favor: Erro de conexão (' . $response->get_error_message() . ')' );
             }
-            return;                     
-        }        
+            return false;
+        }
 
-        $filename = 'favor_shipping_etiqueta_' . time() . '.pdf';
-
-        file_put_contents($filename, $bin);
+        $response_body = wp_remote_retrieve_body( $response );
+        $response_body_decoded = json_decode( $response_body, true );
         
-        header('Content-Description: File Transfer');
-        header('Content-Type: application/pdf');
-        header('Content-Disposition: attachment; filename="' . basename($filename) . '"');
-        header('Expires: 0');
-        header('Cache-Control: must-revalidate');
-        header('Pragma: public');
-        header('Content-Length: ' . filesize($filename));
+        if ( ! isset( $response_body_decoded['success'] ) || ! $response_body_decoded['success'] ) {
+            WC_Favor_Shipping_Logger::error( 'A API retornou erro ou sucesso=false para o pedido #' . $order_id ); 
+            WC_Favor_Shipping_Logger::error( 'Resposta da API: ' . $response_body );
             
-        ob_clean();
-        flush();
-            
-        readfile($filename);
-                
-        unlink($filename);
-        exit;        
-        //
+            if( is_object( $order_obj ) ) {
+                $error_msg = isset( $response_body_decoded['error'] ) ? $response_body_decoded['error'] : 'Erro desconhecido';
+                $order_obj->add_order_note( 'Falha ao gerar etiqueta Favor: ' . $error_msg );
+            }
+            return false;
+        }
 
+        if( empty( $response_body_decoded['label'] ) ) {
+            WC_Favor_Shipping_Logger::error( 'Campo da etiqueta está vazio na resposta de sucesso para o pedido #' . $order_id );
+            return false;
+        }
+
+        // Prepare upload directory
+        $upload_dir = wp_upload_dir();
+        $favor_dir = $upload_dir['basedir'] . '/favor-shipping-labels';
+        
+        if ( ! file_exists( $favor_dir ) ) {
+            wp_mkdir_p( $favor_dir );
+        }
+
+        $timestamp = time();
+
+        // Process and save label PDF
+        $label_base64 = $response_body_decoded['label'];
+        $label_bin = base64_decode($label_base64, true);
+
+        if (strpos($label_bin, '%PDF') !== 0) {            
+            WC_Favor_Shipping_Logger::error( 'Assinatura de arquivo PDF ausente para a etiqueta no pedido #' . $order_id ); 
+            WC_Favor_Shipping_Logger::error( print_r( $response, true ) );   
+            if( is_object( $order_obj ) ) {
+                $order_obj->add_order_note( 'PDF da etiqueta não gerado (assinatura inválida), contatar o suporte!' );
+            }
+            return false;                     
+        }
+
+        $label_filename = 'order-' . $order_id . '-label-' . $timestamp . '.pdf';
+        $label_filepath = $favor_dir . '/' . $label_filename;
+        file_put_contents($label_filepath, $label_bin);
+        $label_url = $upload_dir['baseurl'] . '/favor-shipping-labels/' . $label_filename;
+
+        WC_Favor_Shipping_Logger::info( 'PDF da etiqueta salvo com sucesso para o pedido #' . $order_id . ': ' . $label_filename );
+
+        // Process and save content declaration PDF if present
+        $content_declaration_url = '';
+        if( ! empty( $response_body_decoded['contentDeclaration'] ) ) {
+            $content_base64 = $response_body_decoded['contentDeclaration'];
+            $content_bin = base64_decode($content_base64, true);
+
+            if (strpos($content_bin, '%PDF') === 0) {
+                $content_filename = 'order-' . $order_id . '-content-declaration-' . $timestamp . '.pdf';
+                $content_filepath = $favor_dir . '/' . $content_filename;
+                file_put_contents($content_filepath, $content_bin);
+                $content_declaration_url = $upload_dir['baseurl'] . '/favor-shipping-labels/' . $content_filename;
+                WC_Favor_Shipping_Logger::info( 'PDF da declaração de conteúdo salvo para o pedido #' . $order_id . ': ' . $content_filename );
+            } else {
+                WC_Favor_Shipping_Logger::error( 'Assinatura de arquivo PDF ausente para a declaração de conteúdo no pedido #' . $order_id );
+            }
+        }
+
+        // Save URLs to order meta
+        if( is_object( $order_obj ) ) {
+            $order_obj->update_meta_data( '_favor_shipping_label_url', $label_url );
+            $order_obj->update_meta_data( '_favor_shipping_label_generated', $timestamp );
+            
+            if( ! empty( $content_declaration_url ) ) {
+                $order_obj->update_meta_data( '_favor_content_declaration_url', $content_declaration_url );
+            }
+            
+            $order_obj->save();
+            $date = new DateTime("@$timestamp");
+            $date->setTimezone(new DateTimeZone('America/Sao_Paulo'));
+            $order_obj->add_order_note( 'Etiqueta Favor gerada com sucesso em ' . $date->format('d/m/Y H:i:s') );
+        }
+
+        return true;
     }
 }

@@ -15,7 +15,8 @@ class WC_Favor_Shipping_Order {
     public function __construct() {
         add_filter( 'woocommerce_order_actions', array( $this, 'generate_favor_shipping_label_order_action' ), 9999, 2 );
         add_action( 'woocommerce_order_action_favor_shipping_label', array( $this, 'get_labels' ) );
-
+        add_action( 'woocommerce_order_action_favor_shipping_regenerate_label', array( $this, 'regenerate_labels' ) );
+        add_action( 'add_meta_boxes', array( $this, 'add_order_labels_meta_box' ) );
     }
 
     /**
@@ -28,7 +29,15 @@ class WC_Favor_Shipping_Order {
     public function generate_favor_shipping_label_order_action( $actions, $order_id ) {
         $order = wc_get_order( $order_id );
         if ( in_array( $order->get_status(), wc_get_is_paid_statuses() ) ) {
-            $actions['favor_shipping_label'] = 'Exibir etiqueta de despacho';
+            $existing_label_url = $order->get_meta( '_favor_shipping_label_url' );
+            
+            if ( empty( $existing_label_url ) ) {
+                // No label exists, show generate option
+                $actions['favor_shipping_label'] = 'Gerar Etiqueta Favor';
+            } else {
+                // Label exists, show regenerate option
+                $actions['favor_shipping_regenerate_label'] = 'Gerar outra Etiqueta Favor';
+            }
         }
         return $actions;
     }
@@ -39,68 +48,255 @@ class WC_Favor_Shipping_Order {
      * @param datatype $order The order object to retrieve shipping methods from.
      */
     public function get_labels( $order ) {
-        foreach($order->get_shipping_methods() as $shipping_method ){
-            $cod_servico = $shipping_method->get_meta('Serviço');             
-        } 
+        // Generate new labels (this should only be called when no labels exist)
+        $this->generate_new_labels( $order );
+    }
 
-        $remetente = array(
-            "nomeRemetente" => get_option( 'blogname' ),
-            "cepRemetente" =>  WC()->countries->get_base_postcode(),
-            "logradouroRemetente" => WC()->countries->get_base_address(),
-            "numeroRemetente" => "N/A",
-            "complementoRemetente" => "",
-            "bairroRemetente" => WC()->countries->get_base_address_2(),
-            "cidadeRemetente" => WC()->countries->get_base_city(),
-            "ufRemetente" => WC()->countries->get_base_state(),           
-        );
+    /**
+     * Regenerate labels - delete old PDFs and create new ones.
+     *
+     * @param WC_Order $order The order object.
+     */
+    public function regenerate_labels( $order ) {
+        // Delete old PDF files
+        $old_label_url = $order->get_meta( '_favor_shipping_label_url' );
+        $old_content_url = $order->get_meta( '_favor_content_declaration_url' );
         
-        foreach( $order->get_items() as $item_id => $item ) {
-
-            $product = wc_get_product( $item->get_product_id() );
-
-            //Minimal dimensions
-            $dimensaoLargura = wc_get_dimension( (float) $product->get_width(), 'cm' );
-            if( $dimensaoLargura < 10 ) { $dimensaoLargura = 10; }
-
-            $dimensaoComprimento = wc_get_dimension( (float) $product->get_length(), 'cm' );
-            if( $dimensaoComprimento < 16 ) { $dimensaoComprimento = 16; }
-
-            $dimensaoAltura = wc_get_dimension( (float) $product->get_height(), 'cm' );
-            if( $dimensaoAltura < 2 ) { $dimensaoAltura = 2; }
-
-            $objetosPostais[] = array(
-                "codigoServicoPostagem" => $cod_servico,
-                "peso" => wc_get_weight( (float) $product->get_weight(), 'kg' ) * 1000, 
-                "destinatario" => array(
-                    "nomeDestinatario" => $order->get_billing_first_name() . " " . $order->get_billing_last_name(),
-                    "logradouroDestinatario" => $order->get_billing_address_1(),
-                    "complementoDestinatario" => $order->get_billing_address_2(),
-                    "numeroDestinatario" =>  $order->get_meta( '_billing_number' ),
-                    "cpfCnpjDestinatario" => $order->get_meta( '_billing_cpf' ),
-                    "bairroDestinatario" => $order->get_meta( '_billing_neighborhood' ),
-                    "cidadeDestinatario" => $order->get_billing_city(),
-                    "ufDestinatario" => $order->get_billing_state(),
-                    "cepDestinatario" => str_replace( "-", "", $order->get_billing_postcode() ),
-                    "telefoneDestinatario" => $order->get_meta( '_billing_cellphone' ),
-                ),
-                "dimensaoObjeto" => array(
-                    "tipoObjeto" => "002",
-                    "dimensaoAltura" => $dimensaoAltura,
-                    "dimensaoLargura" => $dimensaoLargura,
-                    "dimensaoComprimento" => $dimensaoComprimento,
-                ),
-                "declaracaoConteudo" => array(
-                    array(
-                        "conteudo" => $item->get_name(),
-                        "quantidade" => $item->get_quantity(),
-                        "valorUnitario" => intval( $product->get_price() ),
-                    ),
-                ), 
-            );          
+        if ( ! empty( $old_label_url ) ) {
+            $old_label_path = $this->get_file_path_from_url( $old_label_url );
+            if ( file_exists( $old_label_path ) ) {
+                unlink( $old_label_path );
+            }
         }
         
+        if ( ! empty( $old_content_url ) ) {
+            $old_content_path = $this->get_file_path_from_url( $old_content_url );
+            if ( file_exists( $old_content_path ) ) {
+                unlink( $old_content_path );
+            }
+        }
+        
+        // Clear old meta data
+        $order->delete_meta_data( '_favor_shipping_label_url' );
+        $order->delete_meta_data( '_favor_content_declaration_url' );
+        $order->delete_meta_data( '_favor_shipping_label_generated' );
+        $order->save();
+        
+        $order->add_order_note( 'Etiquetas antigas removidas. Gerando novas etiquetas...' );
+        
+        // Generate new labels
+        $this->generate_new_labels( $order );
+    }
+
+    /**
+     * Convert URL to file system path.
+     *
+     * @param string $url The file URL.
+     * @return string The file system path.
+     */
+    private function get_file_path_from_url( $url ) {
+        $upload_dir = wp_upload_dir();
+        return str_replace( $upload_dir['baseurl'], $upload_dir['basedir'], $url );
+    }
+
+    /**
+     * Generate new labels from the order data.
+     *
+     * @param WC_Order $order The order object.
+     */
+    private function generate_new_labels( $order ) {
+        
+        // Get settings from new location
+        $cpf_cnpj_sender = WC_Favor_Shipping_Settings::get_cpf_cnpj();
+        $store_phone = preg_replace('/[^0-9]/', '', WC_Favor_Shipping_Settings::get_contact_phone());
+        $store_number = get_option( 'favor_store_address_number', '' );
+        $store_neighborhood = get_option( 'favor_store_neighborhood', '' );
+
+        $remetente = array(
+            "name" => get_option( 'blogname' ),
+            "email" => get_option( 'admin_email' ),
+            "phone" => $store_phone,
+            "cpf_cnpj" => $cpf_cnpj_sender,
+            "address" => array(
+                "zip" => str_replace( "-", "", WC()->countries->get_base_postcode() ),
+                "street" => WC()->countries->get_base_address(),
+                "number" => ! empty( $store_number ) ? $store_number : "N/A",
+                "complement" => WC()->countries->get_base_address_2(),
+                "neighborhood" => $store_neighborhood,
+                "city" => WC()->countries->get_base_city(),
+                "state" => WC()->countries->get_base_state(),
+            )
+        );
+
+        $packages = array();
+        
+        // Get shipping service from order shipping methods
+        $service_name = null;
+        foreach($order->get_shipping_methods() as $shipping_method ){
+            $cod_servico = $shipping_method->get_meta('Serviço');
+            if( $cod_servico ) {
+                $service_name = $this->get_service_name_from_code( $cod_servico );
+                break; 
+            }
+        }
+        
+        // If no service found, log error and abort
+        if( !$service_name ) {
+            $order->add_order_note( 'Erro: Não foi possível identificar o serviço de entrega. Verifique se o método de entrega está configurado corretamente ou se o serviço de entrega da FAVOR foi selecionado.' );
+            return;
+        } 
+        
+        foreach( $order->get_items() as $item_id => $item ) {
+            $product = wc_get_product( $item->get_product_id() );
+            //Minimal dimensions
+            $width = wc_get_dimension( (float) $product->get_width(), 'cm' );
+            if( $width < 10 ) { $width = 10; }
+
+            $length = wc_get_dimension( (float) $product->get_length(), 'cm' );
+            if( $length < 16 ) { $length = 16; }
+
+            $height = wc_get_dimension( (float) $product->get_height(), 'cm' );
+            if( $height < 2 ) { $height = 2; }
+
+            $weight = wc_get_weight( (float) $product->get_weight(), 'kg' ) * 1000;
+
+            $packages[] = array(
+                "shipping_service_name" => $service_name,
+                "content_declaration" => array(
+                    array(
+                        "content" => $item->get_name(),
+                        "quantity" => $item->get_quantity(),
+                        "unit_value" => intval( $product->get_price() )
+                    )
+                ),
+                "package_data" => array(
+                    "package_weight_grams" => $weight,
+                    "package_width" => $width,
+                    "package_height" => $height,
+                    "package_length" => $length,
+                    "package_type" => "BOX" // Defaulting to BOX
+                )
+            );
+        }
+
+        $receivers = array(
+            array(
+                "name" => $order->get_billing_first_name() . " " . $order->get_billing_last_name(),
+                "email" => $order->get_billing_email(),
+                "phone" => $order->get_meta( '_billing_cellphone' ) ? $order->get_meta( '_billing_cellphone' ) : $order->get_billing_phone(),
+                "cpf_cnpj" => $order->get_meta( '_billing_cpf' ), // Assuming this meta key exists as per previous code
+                "address" => array(
+                    "zip" => str_replace( "-", "", $order->get_billing_postcode() ),
+                    "street" => $order->get_billing_address_1(),
+                    "number" => $order->get_meta( '_billing_number' ),
+                    "complement" => $order->get_billing_address_2(),
+                    "neighborhood" => $order->get_meta( '_billing_neighborhood' ),
+                    "city" => $order->get_billing_city(),
+                    "state" => $order->get_billing_state()
+                ),
+                "packages" => $packages
+            )
+        );
+
+        $request_body = array(
+            "sender" => $remetente,
+            "receivers" => $receivers
+        );
+        
         $api = new WC_Favor_Shipping_API();
-        $api->get_label_data( $remetente, $objetosPostais, $cod_servico, $order );
+        $result = $api->get_label_data( $request_body, $order );
+        
+        if ( ! $result ) {
+            $order->add_order_note( 'Erro ao gerar etiqueta Favor. Verifique os logs.' );
+        }
+    }
+
+    /**
+     * Add meta box to display Favor shipping labels on order edit page.
+     */
+    public function add_order_labels_meta_box() {
+        add_meta_box(
+            'favor_shipping_labels',
+            'Etiquetas Favor',
+            array( $this, 'render_order_labels_meta_box' ),
+            'shop_order',
+            'side',
+            'high'
+        );
+
+        // For HPOS (High-Performance Order Storage)
+        add_meta_box(
+            'favor_shipping_labels',
+            'Etiquetas Favor',
+            array( $this, 'render_order_labels_meta_box' ),
+            'woocommerce_page_wc-orders',
+            'side',
+            'high'
+        );
+    }
+
+    /**
+     * Render the meta box content with label download links.
+     *
+     * @param WP_Post|WC_Order $post_or_order The order post or order object.
+     */
+    public function render_order_labels_meta_box( $post_or_order ) {
+        // Get order object
+        if ( $post_or_order instanceof WC_Order ) {
+            $order = $post_or_order;
+        } else {
+            $order = wc_get_order( $post_or_order->ID );
+        }
+
+        if ( ! $order ) {
+            echo '<p>Pedido não encontrado.</p>';
+            return;
+        }
+
+        $label_url = $order->get_meta( '_favor_shipping_label_url' );
+        $content_url = $order->get_meta( '_favor_content_declaration_url' );
+        $generated_timestamp = $order->get_meta( '_favor_shipping_label_generated' );
+
+        if ( empty( $label_url ) ) {
+            echo '<p>Nenhuma etiqueta gerada ainda.</p>';
+            echo '<p><em>Use a ação "Gerar Etiqueta Favor" em "Ações do Pedido" para gerar.</em></p>';
+            return;
+        }
+
+        echo '<div class="favor-shipping-labels-box">';
+        
+        if ( $generated_timestamp ) {
+            $date = new DateTime("@$generated_timestamp");
+            $date->setTimezone(new DateTimeZone('America/Sao_Paulo'));
+            echo '<p><strong>Gerado em:</strong> ' . $date->format('d/m/Y H:i:s') . '</p>';
+        }
+
+        echo '<p><strong>Documentos disponíveis:</strong></p>';
+        echo '<ul style="margin-left: 8px;">';
+        
+        if ( ! empty( $label_url ) ) {
+            echo '<li><a href="' . esc_url( $label_url ) . '" target="_blank" class="button button-primary" style="margin-bottom: 5px; display: inline-block;">📄 Download Etiqueta</a></li>';
+        }
+        
+        if ( ! empty( $content_url ) ) {
+            echo '<li><a href="' . esc_url( $content_url ) . '" target="_blank" class="button button-secondary" style="margin-bottom: 5px; display: inline-block;">📋 Download Declaração de Conteúdo</a></li>';
+        }
+        
+        echo '</ul>';
+        echo '</div>';
+    }
+
+    private function get_service_name_from_code( $code ) {
+        // Correios contract service codes
+        $map = array(
+            '03298' => 'PAC',
+            '03220' => 'SEDEX',
+            '03158' => 'SEDEX 10',
+            '03140' => 'SEDEX 12',
+            '03204' => 'SEDEX HOJE',
+            '04227' => 'MINI ENVIOS',
+        );
+        return isset( $map[$code] ) ? $map[$code] : null;
     }
 }
 

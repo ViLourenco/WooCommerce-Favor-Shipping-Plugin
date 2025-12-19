@@ -1,15 +1,15 @@
 <?php
 /**
- * Plugin Name: Favor Shipping Plugin
- * Version: 1.0.0
- * Plugin URI: https://favor.com.br
- * Description: Favor Shipping Plugin
+ * Plugin Name: Favor Despaches WooCommerce
+ * Version: 1.1.0
+ * Plugin URI: https://favordespaches.com.br
+ * Description: Plugin Favor Despaches para WooCommerce
  * Author: Vinícius Lourenço
  * Author URI: https://codyss.com.br
  * Requires at least: 4.4.0
  * Tested up to: 4.6.0
  *
- * Text Domain: favor-shipping-plugin
+ * Text Domain: favor-despaches-woocommerce-plugin
  * Domain Path: /languages
  *
  * @package WordPress
@@ -34,7 +34,7 @@ if ( ! class_exists( 'Favor_Shipping_Plugin' ) ) {
 		*
 		* @var string
 		*/
-		const VERSION = '1.0.0';
+		const VERSION = '1.1.0';
 
 
 		/**
@@ -95,26 +95,18 @@ if ( ! class_exists( 'Favor_Shipping_Plugin' ) ) {
 		public function includes() {
 			include_once 'includes/favor-shipping-functionality.php';	
 			include_once 'includes/utils/class-wc-favor-shipping-package.php';
+			include_once 'includes/utils/class-wc-favor-shipping-logger.php';
 			include_once 'includes/api/class-wc-favor-shipping-api.php';
 			include_once 'includes/order/class-wc-favor-shipping-order.php';
+			include_once 'includes/admin/class-wc-favor-shipping-settings.php';
+			include_once 'includes/admin/class-wc-favor-shipping-logs-page.php';
+			include_once 'includes/frontend/class-wc-favor-shipping-calculator.php';
 
-			if( class_exists( 'WC_Integration' ) ) {
-				include_once 'includes/integrations/class-wc-favor-shipping-integration.php';
-				add_filter( 'woocommerce_integrations', array( $this, 'register_integration' ) );
-			}
 			add_action( 'woocommerce_shipping_init', array( $this, 'include_shipping' ) );
 			add_filter( 'woocommerce_shipping_methods', array( $this, 'include_shipping_method' ) );
-		}
-
-		/**
-		 * Registers the integration by adding the 'Favor_Shipping_WC_Integration' class to the integrations array.
-		 *
-		 * @param array $integrations The array of integrations.
-		 * @return array The updated array of integrations.
-		 */
-		public function register_integration( $integrations ) {
-			$integrations[] = 'WC_Favor_Shipping_Integration';
-			return $integrations;
+			
+			// Add custom store address fields
+			add_filter( 'woocommerce_general_settings', array( $this, 'add_store_address_fields' ) );
 		}
 
 		/**
@@ -154,6 +146,45 @@ if ( ! class_exists( 'Favor_Shipping_Plugin' ) ) {
 			echo '<div class="error">';
 			echo '<p>' . __( 'Favor Shipping Plugin: Needs the WooCommerce Plugin activated.', 'favor-shipping-locale' ) . '</p>';
 			echo '</div>';
+		}
+
+		/**
+		 * Add custom store address fields (Número and Bairro) to WooCommerce general settings.
+		 *
+		 * @param array $settings The existing settings array.
+		 * @return array The modified settings array.
+		 */
+		public function add_store_address_fields( $settings ) {
+			$new_settings = array();
+
+			foreach ( $settings as $setting ) {
+				$new_settings[] = $setting;
+
+				// Insert our custom fields after woocommerce_store_address_2
+				if ( isset( $setting['id'] ) && 'woocommerce_store_address_2' === $setting['id'] ) {
+					$new_settings[] = array(
+						'title'    => __( 'Número', 'favor-despaches-woocommerce-plugin' ),
+						'desc'     => __( 'Número do endereço da loja', 'favor-despaches-woocommerce-plugin' ),
+						'id'       => 'favor_store_address_number',
+						'type'     => 'text',
+						'css'      => 'min-width:300px;',
+						'default'  => '',
+						'desc_tip' => true,
+					);
+
+					$new_settings[] = array(
+						'title'    => __( 'Bairro', 'favor-despaches-woocommerce-plugin' ),
+						'desc'     => __( 'Bairro da loja', 'favor-despaches-woocommerce-plugin' ),
+						'id'       => 'favor_store_neighborhood',
+						'type'     => 'text',
+						'css'      => 'min-width:300px;',
+						'default'  => '',
+						'desc_tip' => true,
+					);
+				}
+			}
+
+			return $new_settings;
 		}
 	}
 }
