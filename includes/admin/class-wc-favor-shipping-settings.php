@@ -133,7 +133,7 @@ class WC_Favor_Shipping_Settings {
                 'desc'     => __( 'Cor principal dos botões, preços e elementos interativos', 'favor-despaches-woocommerce-plugin' ),
                 'id'       => 'woocommerce_favor_calculator_primary_color',
                 'type'     => 'favor_color',
-                'default'  => '#0fae79',
+                'default'  => '#40b8f1',
                 'desc_tip' => true,
             ),
             array(
@@ -141,7 +141,7 @@ class WC_Favor_Shipping_Settings {
                 'desc'     => __( 'Cor para mensagens de erro e alertas', 'favor-despaches-woocommerce-plugin' ),
                 'id'       => 'woocommerce_favor_calculator_error_color',
                 'type'     => 'favor_color',
-                'default'  => '#e74c3c',
+                'default'  => '#eb3d63',
                 'desc_tip' => true,
             ),
             array(
