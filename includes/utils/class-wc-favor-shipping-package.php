@@ -26,6 +26,18 @@ class WC_Favor_Shipping_Package {
 	}
 
 	/**
+	 * Get weight in grams.
+	 *
+	 * Converts weight from WooCommerce's configured unit to grams.
+	 *
+	 * @param float|string $weight Weight value in WooCommerce's configured unit.
+	 * @return float Weight in grams.
+	 */
+	public static function get_weight_in_grams( $weight ) {
+		return (float) wc_get_weight( $weight, 'g' );
+	}
+
+	/**
 	 * Extracts the weight and dimensions from the package.
 	 *
 	 * @return array
@@ -47,7 +59,7 @@ class WC_Favor_Shipping_Package {
 				$_height = wc_get_dimension( (float) $product->get_height(), 'cm' );
 				$_width  = wc_get_dimension( (float) $product->get_width(), 'cm' );
 				$_length = wc_get_dimension( (float) $product->get_length(), 'cm' );
-				$_weight = wc_get_weight( (float) $product->get_weight(), 'kg' );
+				$_weight = self::get_weight_in_grams( (float) $product->get_weight() );
 
 				$height[ $count ] = $_height;
 				$width[ $count ]  = $_width;

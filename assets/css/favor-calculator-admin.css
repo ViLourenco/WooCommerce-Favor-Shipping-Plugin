@@ -1,0 +1,126 @@
+/**
+ * Favor Shipping Calculator Admin Styles
+ */
+
+.favor-calculator-preview-container {
+    margin: 20px 0;
+    padding: 40px;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 12px;
+}
+
+#favor-calculator-preview {
+    max-width: 450px;
+    margin: 0 auto;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+    font-size: var(--favor-font-size, 14px);
+}
+
+.favor-preview-calculator-container {
+    background-color: var(--favor-bg-color, #ffffff);
+    border: 1px solid var(--favor-border-color, #e0e0e0);
+    border-radius: var(--favor-border-radius, 8px);
+    padding: 24px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.favor-preview-title {
+    color: var(--favor-text-color, #1a1a1a);
+    font-size: 1.15em;
+    font-weight: 700;
+    margin: 0 0 20px 0;
+}
+
+.favor-preview-input-group {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.favor-preview-cep-input {
+    flex: 1;
+    height: 44px;
+    padding: 0 16px;
+    border: 1px solid var(--favor-border-color, #e0e0e0);
+    border-radius: var(--favor-border-radius, 8px);
+    font-size: 1em;
+    color: var(--favor-text-color, #1a1a1a);
+    background-color: #ffffff;
+    pointer-events: none;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
+}
+
+.favor-preview-results {
+    background-color: var(--favor-results-bg-color, #ffffff);
+    border: 1px solid var(--favor-border-color, #e0e0e0);
+    border-radius: var(--favor-border-radius, 8px);
+    padding: 20px;
+    margin-top: 5px;
+}
+
+.favor-preview-results-title {
+    color: var(--favor-text-color, #1a1a1a);
+    font-weight: 700;
+    margin-bottom: 16px;
+    font-size: 1.1em;
+}
+
+.favor-preview-results-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.favor-preview-result-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+.favor-preview-result-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.favor-preview-result-item:first-child {
+    padding-top: 0;
+}
+
+.favor-preview-result-name {
+    color: var(--favor-text-color, #1a1a1a);
+    font-weight: 500;
+}
+
+.favor-preview-result-price {
+    color: var(--favor-primary-color, #0fae79);
+    font-weight: 700;
+    font-size: 1.1em;
+}
+
+.favor-preview-description {
+    margin-top: 20px;
+    padding: 15px;
+    color: var(--favor-text-secondary-color, #777777);
+    font-size: 13px;
+    text-align: center;
+    line-height: 1.5;
+}
+
+/* Color picker styling */
+.favor-color-picker-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Settings section styling */
+.woocommerce table.form-table .favor-color-field th,
+.woocommerce table.form-table .favor-color-field td {
+    padding: 15px 0;
+}
+
+.woocommerce table.form-table .favor-preview-field td {
+    padding: 20px 0;
+}

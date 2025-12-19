@@ -100,6 +100,7 @@ if ( ! class_exists( 'Favor_Shipping_Plugin' ) ) {
 			include_once 'includes/order/class-wc-favor-shipping-order.php';
 			include_once 'includes/admin/class-wc-favor-shipping-settings.php';
 			include_once 'includes/admin/class-wc-favor-shipping-logs-page.php';
+			include_once 'includes/frontend/class-wc-favor-shipping-calculator.php';
 
 			add_action( 'woocommerce_shipping_init', array( $this, 'include_shipping' ) );
 			add_filter( 'woocommerce_shipping_methods', array( $this, 'include_shipping_method' ) );
